@@ -1,4 +1,4 @@
-from fastapi import Request, Response
+from fastapi import Request, Response, HTTPException
 import httpx
 import requests
 import logging

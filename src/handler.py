@@ -50,6 +50,7 @@ def start_llama_server():
     cmd = [
         "/app/llama-server",
         "--hf-repo", model_name,
+        "--mmproj", "/app/models/ggml-model-qwen3vl-30b-instruct-mmproj-bf16.gguf",
         "--port", os.getenv("LLAMA_PORT", "1234"),
         "--host", "0.0.0.0",
         "--ctx-size", os.getenv("MAX_CONTEXT", "0"),
@@ -60,6 +61,7 @@ def start_llama_server():
         "--cache-type-v", os.getenv("CACHE_TYPE_V", "f16"),
         "--cont-batching",
         "--flash-attn",
+        "--api-key", os.getenv("LLAMA_API_KEY", ""),
     ]
     
     print(f"Starting llama.cpp server with command: {' '.join(cmd)}")

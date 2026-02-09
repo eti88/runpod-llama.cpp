@@ -206,3 +206,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .kilocode
+
+FabioTestOcr/huggingface/*
+FabioTestOcr/data
+FabioTestOcr/data2
+FabioTestOcr/logs
+FabioTestOcr/logs2

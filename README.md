@@ -48,7 +48,9 @@ The Docker image is built in multiple stages:
 ### Building with Docker
 
 ```bash
-docker build -t runpod-llama:latest .
+# Example: pass the Hugging Face model ID to download during build
+# (defaults to unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF:Q8_0 if omitted)
+docker build -t runpod-llama:latest --build-arg MODEL_NAME=unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF:Q8_0 .
 ```
 
 ### Building with RunPod

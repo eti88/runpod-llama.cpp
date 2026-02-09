@@ -7,18 +7,15 @@ WORKDIR /app
 # Make sure /build/models exists even if nothing is downloaded
 RUN mkdir -p /app/models
 
-# Accept model-related args/envs
-ARG MODEL_NAME
-# Download the model to reuse it in the runtime image
-RUN /app/llama-cli --hf-repo ${MODEL_NAME} -no-cnv -c 10 -n 2 -p "hi"
-
 # =================================
 # Stage 2: Prepare production image
 # =================================
 FROM ghcr.io/ggml-org/llama.cpp:server-cuda AS builder
 
-RUN apt-get update && apt-get install -y python3 python3-venv \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 python3-venv unzip supervisor openssh-server \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /var/log/supervisor /var/run/sshd /root/.ssh \
+ && chmod 700 /root/.ssh
 
 RUN python3 -m venv /app/.venv 
 # Python packages (RunPod SDK + utilities)
@@ -27,22 +24,38 @@ RUN /app/.venv/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
         runpod \
         fastapi \
         requests \
+        huggingface_hub \
         psutil
 
 WORKDIR /app
-COPY src /app
+COPY FabioTestOcr /app
+RUN /app/.venv/bin/python3 -m pip install --no-cache-dir -r /app/requirements.txt
+RUN mkdir -p /app/data/ftp /app/output /app/logs
+
+COPY src/entrypoint.sh /app/entrypoint.sh
+COPY src/start-llama-server.sh /app/start-llama-server.sh
+#COPY src/main.py /app/main.py
+COPY src/supervisord.conf /app/supervisord.conf
+COPY src/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Create non-root user
 # RUN groupadd -r llama && useradd -r -g llama -u 1001 llamauser
 
 # Copy built binary and models
-# COPY --from=builder /app/llama-server /usr/local/bin/llama-server
 FROM builder AS runtime
+COPY --from=builder /app/llama-server /usr/local/bin/llama-server
 COPY --from=builder /app /app
-# COPY --from=model-downloader /root/.cache/llama.cpp /root/.cache/llama.cpp
+# Make scripts executable and setup supervisor
+RUN chmod +x /app/entrypoint.sh /app/start-llama-server.sh /app/main.py /app/docker-entrypoint.sh || true \
+ && cp /app/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-ARG MODEL_NAME
+# Defaults for runtime; do NOT download model at build time
+ARG MODEL_NAME=""
+ARG MODEL_FILENAME=Qwen3-VL-30B-A3B-Instruct-Q8_0.gguf
 ENV MODEL_NAME=${MODEL_NAME}
+ENV MODEL_FILENAME=${MODEL_FILENAME}
+ENV API_KEY=${LLAMA_API_KEY}
+ENV PORT=8000
 
 # Env
 ENV NVIDIA_VISIBLE_DEVICES=all
@@ -61,7 +74,5 @@ EXPOSE ${PORT:-80}
 # ENV CUDA_VISIBLE_DEVICES=0
 # Run as non-root after files are in place
 
-# Prefer an explicit entrypoint (avoids NVIDIA entrypoint arg mishaps)
-ENTRYPOINT ["/app/.venv/bin/python3", "/app/handler.py"]
-# ENTRYPOINT ["/app/llama-server", "--list-devices"]
-#ENTRYPOINT ["/bin/bash"]
+# Explicit entrypoint for supervisor
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
